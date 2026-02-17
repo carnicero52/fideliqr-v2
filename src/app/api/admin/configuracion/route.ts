@@ -26,34 +26,48 @@ export async function PATCH(request: NextRequest) {
     const sesion = sesionResult.rows[0];
     const data = await request.json();
 
-    await db.execute({
-      sql: `UPDATE Negocio SET 
-            nombre = ?, telefono = ?, direccion = ?, descripcion = ?,
-            puestoBuscado = ?, requisitos = ?, buscandoPersonal = ?,
-            whatsapp = ?, facebook = ?, instagram = ?,
-            notifTelegramActivo = ?, notifTelegramBotToken = ?, notifTelegramChatId = ?,
-            notifEmailActivo = ?, notifEmailSmtp = ?, notifEmailPuerto = ?,
-            notifEmailUsuario = ?, notifEmailPassword = ?, notifEmailRemitente = ?,
-            notifWhatsappActivo = ?, notifWhatsappApiUrl = ?, notifWhatsappApiKey = ?, notifWhatsappNumero = ?,
-            googleSheetsActivo = ?, googleSheetsId = ?, googleSheetsApiKey = ?,
-            updatedAt = ?
-            WHERE id = ?`,
-      args: [
-        data.nombre || null, data.telefono || null, data.direccion || null, data.descripcion || null,
-        data.puestoBuscado || null, data.requisitos || null, data.buscandoPersonal ? 1 : 0,
-        data.whatsapp || null, data.facebook || null, data.instagram || null,
-        data.notifTelegramActivo ? 1 : 0, data.notifTelegramBotToken || null, data.notifTelegramChatId || null,
-        data.notifEmailActivo ? 1 : 0, data.notifEmailSmtp || null, data.notifEmailPuerto || 587,
-        data.notifEmailUsuario || null, data.notifEmailPassword || null, data.notifEmailRemitente || null,
-        data.notifWhatsappActivo ? 1 : 0, data.notifWhatsappApiUrl || null, data.notifWhatsappApiKey || null, data.notifWhatsappNumero || null,
-        data.googleSheetsActivo ? 1 : 0, data.googleSheetsId || null, data.googleSheetsApiKey || null,
-        new Date().toISOString(), sesion.negocioId
-      ]
-    });
+    // Construir query dinámicamente solo con los campos enviados
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    // Mapeo de campos permitidos
+    const camposBoleanos = ['buscandoPersonal', 'notifTelegramActivo', 'notifEmailActivo', 'notifWhatsappActivo', 'googleSheetsActivo'];
+    const camposTexto = ['nombre', 'telefono', 'direccion', 'descripcion', 'puestoBuscado', 'requisitos', 'whatsapp', 'facebook', 'instagram',
+      'notifTelegramBotToken', 'notifTelegramChatId', 'notifEmailSmtp', 'notifEmailUsuario', 'notifEmailPassword', 'notifEmailRemitente',
+      'notifWhatsappApiUrl', 'notifWhatsappApiKey', 'notifWhatsappNumero', 'googleSheetsId', 'googleSheetsApiKey'];
+    const camposNumericos = ['notifEmailPuerto'];
+
+    for (const [key, value] of Object.entries(data)) {
+      if (camposBoleanos.includes(key)) {
+        updates.push(`${key} = ?`);
+        values.push(value ? 1 : 0);
+      } else if (camposTexto.includes(key)) {
+        updates.push(`${key} = ?`);
+        values.push(value || null);
+      } else if (camposNumericos.includes(key)) {
+        updates.push(`${key} = ?`);
+        values.push(value || null);
+      }
+    }
+
+    if (updates.length === 0) {
+      return NextResponse.json({ success: true, message: 'No hay campos para actualizar' });
+    }
+
+    // Siempre actualizar updatedAt
+    updates.push('updatedAt = ?');
+    values.push(new Date().toISOString());
+
+    // Agregar el ID del negocio
+    values.push(sesion.negocioId);
+
+    const sql = `UPDATE Negocio SET ${updates.join(', ')} WHERE id = ?`;
+
+    await db.execute({ sql, args: values });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error al actualizar configuración:', error);
-    return NextResponse.json({ error: 'Error al guardar' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al guardar', details: String(error) }, { status: 500 });
   }
 }
