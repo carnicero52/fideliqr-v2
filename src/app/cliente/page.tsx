@@ -28,8 +28,10 @@ interface ClienteData {
   recompensasPendientes: number;
   recompensasCanjeadas: number;
   qrCodigo: string;
+  comprasNecesarias: number;
   negocio: {
     nombre: string;
+    recompensaComprasNecesarias?: number;
   };
 }
 
@@ -301,17 +303,17 @@ export default function ClientePage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Próxima recompensa</span>
                     <span className="text-sm text-muted-foreground">
-                      {cliente.comprasTotal % 10}/10 compras
+                      {cliente.comprasTotal % cliente.comprasNecesarias}/{cliente.comprasNecesarias} compras
                     </span>
                   </div>
                   <div className="h-3 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full transition-all"
-                      style={{ width: `${(cliente.comprasTotal % 10) * 10}%` }}
+                      style={{ width: `${(cliente.comprasTotal % cliente.comprasNecesarias) / cliente.comprasNecesarias * 100}%` }}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground mt-2 text-center">
-                    {10 - (cliente.comprasTotal % 10)} compras más para tu próximo premio
+                    {cliente.comprasNecesarias - (cliente.comprasTotal % cliente.comprasNecesarias)} compras más para tu próximo premio
                   </p>
                 </CardContent>
               </Card>

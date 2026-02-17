@@ -92,9 +92,9 @@ export const db = {
 
   // Cliente operations
   cliente: {
-    async findFirst(args: { where: { negocioId_email?: { negocioId: string; email: string }; qrCodigo?: string; email?: string; activo?: boolean }; include?: { negocio?: { select: { nombre: boolean } } } }) {
+    async findFirst(args: { where: { negocioId_email?: { negocioId: string; email: string }; qrCodigo?: string; email?: string; activo?: boolean }; include?: { negocio?: { select: { nombre: boolean; recompensaComprasNecesarias?: boolean } } } }) {
       const db = getClient()
-      let sql = 'SELECT c.*, n.nombre as negocio_nombre FROM Cliente c LEFT JOIN Negocio n ON c.negocioId = n.id WHERE 1=1'
+      let sql = 'SELECT c.*, n.nombre as negocio_nombre, n.recompensaComprasNecesarias as negocio_recompensaComprasNecesarias FROM Cliente c LEFT JOIN Negocio n ON c.negocioId = n.id WHERE 1=1'
       const params: any[] = []
       
       if (args.where.qrCodigo) {
@@ -122,13 +122,16 @@ export const db = {
       const row = result.rows[0] as any
       return {
         ...row,
-        negocio: args.include?.negocio ? { nombre: row.negocio_nombre } : undefined
+        negocio: args.include?.negocio ? { 
+          nombre: row.negocio_nombre,
+          recompensaComprasNecesarias: row.negocio_recompensaComprasNecesarias || 10
+        } : undefined
       }
     },
 
-    async findUnique(args: { where: { qrCodigo?: string; id?: string; negocioId_email?: { negocioId: string; email: string } }; include?: { negocio?: { select: { nombre: boolean } } } }) {
+    async findUnique(args: { where: { qrCodigo?: string; id?: string; negocioId_email?: { negocioId: string; email: string } }; include?: { negocio?: { select: { nombre: boolean; recompensaComprasNecesarias?: boolean } } } }) {
       const db = getClient()
-      let sql = 'SELECT c.*, n.nombre as negocio_nombre FROM Cliente c LEFT JOIN Negocio n ON c.negocioId = n.id WHERE 1=1'
+      let sql = 'SELECT c.*, n.nombre as negocio_nombre, n.recompensaComprasNecesarias as negocio_recompensaComprasNecesarias FROM Cliente c LEFT JOIN Negocio n ON c.negocioId = n.id WHERE 1=1'
       const params: any[] = []
       
       if (args.where.qrCodigo) {
@@ -152,7 +155,10 @@ export const db = {
       const row = result.rows[0] as any
       return {
         ...row,
-        negocio: args.include?.negocio ? { nombre: row.negocio_nombre } : undefined
+        negocio: args.include?.negocio ? { 
+          nombre: row.negocio_nombre,
+          recompensaComprasNecesarias: row.negocio_recompensaComprasNecesarias || 10
+        } : undefined
       }
     },
 

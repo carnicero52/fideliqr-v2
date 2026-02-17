@@ -257,10 +257,10 @@ export default function AdminPage() {
           notifTelegramActivo: data.config.notifTelegramActivo === 1 || data.config.notifTelegramActivo === true,
           notifTelegramToken: data.config.notifTelegramToken || '',
           notifTelegramChatId: data.config.notifTelegramChatId || '',
-          recompensaComprasNecesarias: data.config.recompensaComprasNecesarias || 10,
+          recompensaComprasNecesarias: parseInt(data.config.recompensaComprasNecesarias) || 10,
           recompensaDescripcion: data.config.recompensaDescripcion || 'Producto gratis',
           recompensaMensaje: data.config.recompensaMensaje || '¡Felicidades! Has alcanzado tu recompensa',
-          recompensaVigenciaDias: data.config.recompensaVigenciaDias || 30,
+          recompensaVigenciaDias: parseInt(data.config.recompensaVigenciaDias) || 30,
         });
       }
     } catch (error) {
