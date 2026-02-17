@@ -1,124 +1,92 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// ContrataFácil - Sistema de Recepción de CVs
+// Schema v1.0
 
 generator client {
   provider        = "prisma-client-js"
   driverAdapters  = true
 }
 
-// FideliQR v2 - Schema v2.0.5 - Turso compatible
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
 }
 
-// Negocio/Tienda registrada en el sistema
+// Negocio/Tienda que busca personal
 model Negocio {
   id              String   @id @default(cuid())
   nombre          String
   slug            String   @unique
-  emailDestino    String
+  email           String   @unique
   password        String
   telefono        String?
   direccion       String?
   descripcion     String?
   logoUrl         String?
-  qrUrl           String?
+  
+  // Configuración de vacantes
   activo          Boolean  @default(true)
+  buscandoPersonal Boolean @default(true)
+  puestoBuscado   String?  @default("Personal general")
+  requisitos      String?
+  
+  // Redes sociales
+  whatsapp        String?
+  facebook        String?
+  instagram       String?
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  // Configuración de Notificaciones
-  notifEmailActivo        Boolean  @default(true)
-  notifEmailRemitente     String?
-  notifEmailAsunto        String?  @default("Tu código QR de FideliQR")
-  notifEmailMensaje       String?
-  notifTelegramActivo     Boolean  @default(false)
-  notifTelegramToken      String?
-  notifTelegramChatId     String?
-
-  // Configuración de Recompensas
-  recompensaComprasNecesarias  Int      @default(10)
-  recompensaDescripcion        String?  @default("Producto gratis")
-  recompensaMensaje            String?  @default("¡Felicidades! Has alcanzado tu recompensa")
-  recompensaVigenciaDias       Int      @default(30)
-
-  clientes        Cliente[]
-  compras         Compra[]
-  sesiones        AdminSession[]
-  alertas         AlertaSeguridad[]
+  
+  candidatos      Candidato[]
+  sesiones        Sesion[]
 }
 
-model Cliente {
-  id                String   @id @default(cuid())
-  negocioId         String
-  nombre            String
-  email             String
-  telefono          String?
-  qrCodigo          String   @unique
-  comprasTotal      Int      @default(0)
-  recompensasPendientes Int  @default(0)
-  recompensasCanjeadas Int  @default(0)
-  activo            Boolean  @default(true)
-  bloqueado         Boolean  @default(false)
-  motivoBloqueo     String?
-  bloqueadoEn       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  negocio           Negocio  @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-  compras           Compra[]
-  alertas           AlertaSeguridad[]
-
+// Aspirante que envía su CV
+model Candidato {
+  id              String   @id @default(cuid())
+  negocioId       String
+  
+  // Datos personales
+  nombre          String
+  email           String
+  telefono        String
+  direccion       String?
+  fechaNacimiento String?
+  fotoUrl         String?
+  
+  // Información profesional
+  puestoSolicitado String?
+  experiencia     String?    // Años de experiencia
+  educacion       String?    // Nivel educativo
+  habilidades     String?    // Lista de habilidades
+  experienciaDetallada String? // Descripción de experiencia
+  disponibilidad  String?    // Tiempo completo, medio tiempo, etc
+  
+  // Documentos
+  cvUrl           String?    // URL del CV subido
+  
+  // Estado
+  estado          String    @default("nuevo") // nuevo, revisado, contactado, contratado, rechazado
+  notas           String?    // Notas del negocio
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  negocio         Negocio  @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  
   @@unique([negocioId, email])
-}
-
-model Compra {
-  id            String   @id @default(cuid())
-  clienteId     String
-  negocioId     String
-  fecha         DateTime @default(now())
-  compraNumero  Int
-  esRecompensa  Boolean  @default(false)
-  canjeada      Boolean  @default(false)
-  sospechosa    Boolean  @default(false)
-
-  cliente       Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  negocio       Negocio  @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-
-  @@index([clienteId])
   @@index([negocioId])
-  @@index([fecha])
+  @@index([estado])
 }
 
-model AlertaSeguridad {
-  id          String   @id @default(cuid())
-  negocioId   String
-  clienteId   String?
-  tipo        String
-  descripcion String
-  datos       String?
-  revisada    Boolean  @default(false)
-  creadaEn    DateTime @default(now())
-  revisadaEn  DateTime?
-  revisadaPor String?
-
-  negocio     Negocio  @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-  cliente     Cliente? @relation(fields: [clienteId], references: [id], onDelete: SetNull)
-
-  @@index([negocioId])
-  @@index([clienteId])
-  @@index([creadaEn])
-}
-
-model AdminSession {
+model Sesion {
   id        String   @id @default(cuid())
   negocioId String
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-
+  
   negocio   Negocio  @relation(fields: [negocioId], references: [id], onDelete: Cascade)
-
+  
   @@index([negocioId])
 }
