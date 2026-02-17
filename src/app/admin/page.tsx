@@ -122,7 +122,16 @@ export default function AdminPage() {
       const data = await response.json();
       
       if (data.negocio) {
-        setNegocio(data.negocio);
+        // Convertir valores numéricos a booleanos
+        const negocioData = {
+          ...data.negocio,
+          buscandoPersonal: !!data.negocio.buscandoPersonal,
+          notifTelegramActivo: !!data.negocio.notifTelegramActivo,
+          notifEmailActivo: !!data.negocio.notifEmailActivo,
+          notifWhatsappActivo: !!data.negocio.notifWhatsappActivo,
+          googleSheetsActivo: !!data.negocio.googleSheetsActivo,
+        };
+        setNegocio(negocioData);
         loadCandidatos();
       } else {
         setLoading(false);
@@ -164,7 +173,16 @@ export default function AdminPage() {
       const data = await response.json();
 
       if (data.negocio) {
-        setNegocio(data.negocio);
+        // Convertir valores numéricos a booleanos
+        const negocioData = {
+          ...data.negocio,
+          buscandoPersonal: !!data.negocio.buscandoPersonal,
+          notifTelegramActivo: !!data.negocio.notifTelegramActivo,
+          notifEmailActivo: !!data.negocio.notifEmailActivo,
+          notifWhatsappActivo: !!data.negocio.notifWhatsappActivo,
+          googleSheetsActivo: !!data.negocio.googleSheetsActivo,
+        };
+        setNegocio(negocioData);
         loadCandidatos();
         toast({ title: 'Bienvenido', description: `Hola, ${data.negocio.nombre}` });
       } else {
