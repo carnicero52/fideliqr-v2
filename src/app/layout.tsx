@@ -14,16 +14,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FideliQR - Sistema de Fidelización Digital",
-  description: "Sistema de fidelización de clientes con códigos QR. Premia a tus clientes leales de forma simple y efectiva.",
-  keywords: ["fidelización", "clientes", "QR", "puntos", "recompensas", "lealtad"],
-  authors: [{ name: "FideliQR" }],
+  title: "ContrataFácil - Sistema de Recepción de CVs",
+  description: "Sistema de recepción de currículums para pequeñas organizaciones. Recibe candidatos de forma fácil y organizada.",
+  keywords: ["empleo", "trabajo", "currículum", "CV", "candidatos", "reclutamiento", "contratación"],
+  authors: [{ name: "ContrataFácil" }],
   icons: {
     icon: "/logo.svg",
   },
   openGraph: {
-    title: "FideliQR - Sistema de Fidelización Digital",
-    description: "Premia a tus clientes leales de forma simple y efectiva",
+    title: "ContrataFácil - Sistema de Recepción de CVs",
+    description: "Recibe currículums de forma fácil y organizada",
     type: "website",
   },
 };
