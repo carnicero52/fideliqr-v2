@@ -1,8 +1,16 @@
-import { db } from '@/lib/database';
+import { createClient } from '@libsql/client';
 import { verifyAdminSession } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { notifyNewClienteToOwner } from '@/lib/notifications';
 import { telegramNotifyNewCliente } from '@/lib/telegram';
+
+// Cliente directo a Turso
+function getDb() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.DATABASE_AUTH_TOKEN!
+  });
+}
 
 // POST - Registrar cliente manualmente desde el panel admin
 export async function POST(request: NextRequest) {
@@ -29,23 +37,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const db = getDb();
+
     // Verificar que el negocio existe
-    const negocio = await db.negocio.findUnique({
-      where: { id: negocioId },
+    const negocioResult = await db.execute({
+      sql: 'SELECT * FROM Negocio WHERE id = ?',
+      args: [negocioId]
     });
 
-    if (!negocio) {
+    if (negocioResult.rows.length === 0) {
       return NextResponse.json({ error: 'Negocio no encontrado' }, { status: 404 });
     }
 
-    // Verificar si ya existe el cliente con ese email en este negocio
-    const existente = await db.cliente.findUnique({
-      where: {
-        negocioId_email: { negocioId, email },
-      },
+    const negocio = negocioResult.rows[0] as any;
+
+    // Verificar si ya existe el cliente
+    const existenteResult = await db.execute({
+      sql: 'SELECT id FROM Cliente WHERE negocioId = ? AND email = ?',
+      args: [negocioId, email.toLowerCase()]
     });
 
-    if (existente) {
+    if (existenteResult.rows.length > 0) {
       return NextResponse.json(
         { error: 'Ya existe un cliente con este email' },
         { status: 400 }
@@ -56,37 +68,31 @@ export async function POST(request: NextRequest) {
     const comprasTotal = comprasIniciales || 0;
     const recompensasPendientes = Math.floor(comprasTotal / 10);
 
-    // Generar código QR único para el cliente
+    // Generar código QR único
     const qrCodigo = `QR-${negocioId.substring(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`.toUpperCase();
+    const clienteId = `cli_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+    const now = new Date().toISOString();
 
     // Crear cliente
-    const cliente = await db.cliente.create({
-      data: {
-        negocioId,
-        nombre,
-        email,
-        telefono: telefono || null,
-        qrCodigo,
-        comprasTotal,
-        recompensasPendientes,
-      },
+    await db.execute({
+      sql: `INSERT INTO Cliente (id, negocioId, nombre, email, telefono, qrCodigo, comprasTotal, recompensasPendientes, recompensasCanjeadas, activo, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?)`,
+      args: [clienteId, negocioId, nombre, email.toLowerCase(), telefono || null, qrCodigo, comprasTotal, recompensasPendientes, now, now]
     });
 
     // Si hay compras iniciales, registrarlas
     if (comprasTotal > 0) {
       for (let i = 1; i <= comprasTotal; i++) {
-        await db.compra.create({
-          data: {
-            clienteId: cliente.id,
-            negocioId: negocio.id,
-            compraNumero: i,
-            esRecompensa: i % 10 === 0,
-          },
+        const compraId = `com_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+        await db.execute({
+          sql: `INSERT INTO Compra (id, clienteId, negocioId, compraNumero, esRecompensa, fecha)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [compraId, clienteId, negocioId, i, i % 10 === 0 ? 1 : 0, now]
         });
       }
     }
 
-    // Enviar notificaciones al dueño (async, no bloquear respuesta)
+    // Enviar notificaciones al dueño
     Promise.all([
       notifyNewClienteToOwner({
         ownerEmail: negocio.emailDestino,
@@ -109,12 +115,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       cliente: {
-        id: cliente.id,
-        nombre: cliente.nombre,
-        email: cliente.email,
-        qrCodigo: cliente.qrCodigo,
-        comprasTotal: cliente.comprasTotal,
-        recompensasPendientes: cliente.recompensasPendientes,
+        id: clienteId,
+        nombre,
+        email,
+        qrCodigo,
+        comprasTotal,
+        recompensasPendientes,
       },
     });
   } catch (error) {

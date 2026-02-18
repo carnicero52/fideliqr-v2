@@ -1,8 +1,12 @@
 import { createClient } from '@libsql/client';
 
 export function getDb() {
-  return createClient({
-    url: process.env.TURSO_DATABASE_URL || 'file:./dev.db',
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
+  const url = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.DATABASE_AUTH_TOKEN;
+
+  if (!url || !authToken) {
+    throw new Error('TURSO_DATABASE_URL y DATABASE_AUTH_TOKEN son requeridos');
+  }
+
+  return createClient({ url, authToken });
 }

@@ -18,10 +18,7 @@ export async function GET(request: NextRequest) {
       },
       include: {
         negocio: {
-          select: { 
-            nombre: true,
-            recompensaComprasNecesarias: true,
-          },
+          select: { nombre: true },
         },
       },
     });
@@ -41,7 +38,6 @@ export async function GET(request: NextRequest) {
         recompensasCanjeadas: cliente.recompensasCanjeadas,
         qrCodigo: cliente.qrCodigo,
         negocio: cliente.negocio,
-        comprasNecesarias: parseInt(cliente.negocio?.recompensaComprasNecesarias as any) || 10,
       },
     });
   } catch (error) {

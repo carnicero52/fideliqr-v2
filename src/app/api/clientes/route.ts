@@ -1,9 +1,17 @@
-import { db } from '@/lib/database';
+import { createClient } from '@libsql/client';
 import { NextRequest, NextResponse } from 'next/server';
 import { notifyNewClienteToOwner } from '@/lib/notifications';
 import { telegramNotifyNewCliente } from '@/lib/telegram';
 
-// GET - Listar clientes de un negocio (requiere auth admin)
+// Cliente directo a Turso
+function getDb() {
+  return createClient({
+    url: process.env.TURSO_DATABASE_URL!,
+    authToken: process.env.DATABASE_AUTH_TOKEN!
+  });
+}
+
+// GET - Listar clientes de un negocio
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const negocioId = searchParams.get('negocioId');
@@ -17,48 +25,57 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const where: any = { negocioId, activo: true };
+    const db = getDb();
+    
+    // Query principal con búsqueda opcional
+    let sql = `
+      SELECT c.*, 
+        (SELECT COUNT(*) FROM Compra WHERE clienteId = c.id) as comprasCount,
+        (SELECT fecha FROM Compra WHERE clienteId = c.id ORDER BY fecha DESC LIMIT 1) as ultimaCompra
+      FROM Cliente c
+      WHERE c.negocioId = ? AND c.activo = 1
+    `;
+    const params: any[] = [negocioId];
     
     if (search) {
-      where.OR = [
-        { nombre: { contains: search } },
-        { email: { contains: search } },
-        { telefono: { contains: search } },
-      ];
+      sql += ` AND (c.nombre LIKE ? OR c.email LIKE ? OR c.telefono LIKE ?)`;
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
     }
-
-    const [clientes, total] = await Promise.all([
-      db.cliente.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-        include: {
-          _count: {
-            select: { compras: true },
-          },
-          compras: {
-            orderBy: { fecha: 'desc' },
-            take: 1,
-            select: {
-              fecha: true,
-              compraNumero: true,
-            },
-          },
-        },
-      }),
-      db.cliente.count({ where }),
-    ]);
-
-    // Transformar los datos para incluir última compra
-    const clientesConUltimaCompra = clientes.map(cliente => ({
-      ...cliente,
-      ultimaCompra: cliente.compras[0]?.fecha || null,
-      compras: undefined, // Remover el array completo
+    
+    // Contar total
+    let countSql = `SELECT COUNT(*) as total FROM Cliente WHERE negocioId = ? AND activo = 1`;
+    const countParams: any[] = [negocioId];
+    if (search) {
+      countSql += ` AND (nombre LIKE ? OR email LIKE ? OR telefono LIKE ?)`;
+      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    
+    const countResult = await db.execute({ sql: countSql, args: countParams });
+    const total = Number((countResult.rows[0] as any)?.total || 0);
+    
+    // Agregar ordenamiento y paginación
+    sql += ` ORDER BY c.createdAt DESC LIMIT ? OFFSET ?`;
+    params.push(limit, skip);
+    
+    const result = await db.execute({ sql, args: params });
+    
+    // Transformar resultados
+    const clientes = result.rows.map((row: any) => ({
+      id: row.id,
+      nombre: row.nombre,
+      email: row.email,
+      telefono: row.telefono,
+      qrCodigo: row.qrCodigo,
+      comprasTotal: row.comprasTotal || 0,
+      recompensasPendientes: row.recompensasPendientes || 0,
+      recompensasCanjeadas: row.recompensasCanjeadas || 0,
+      createdAt: row.createdAt,
+      ultimaCompra: row.ultimaCompra || null,
     }));
 
     return NextResponse.json({
-      clientes: clientesConUltimaCompra,
+      clientes,
       pagination: {
         page,
         limit,
@@ -72,7 +89,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Registrar nuevo cliente (público)
+// POST - Registrar nuevo cliente
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -85,45 +102,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const db = getDb();
+
     // Verificar que el negocio existe
-    const negocio = await db.negocio.findUnique({
-      where: { id: negocioId },
+    const negocioResult = await db.execute({
+      sql: 'SELECT * FROM Negocio WHERE id = ?',
+      args: [negocioId]
     });
 
-    if (!negocio) {
+    if (negocioResult.rows.length === 0) {
       return NextResponse.json({ error: 'Negocio no encontrado' }, { status: 404 });
     }
 
-    // Verificar si ya existe el cliente con ese email en este negocio
-    const existente = await db.cliente.findUnique({
-      where: {
-        negocioId_email: { negocioId, email },
-      },
+    const negocio = negocioResult.rows[0] as any;
+
+    // Verificar si ya existe el cliente
+    const existenteResult = await db.execute({
+      sql: 'SELECT id FROM Cliente WHERE negocioId = ? AND email = ?',
+      args: [negocioId, email.toLowerCase()]
     });
 
-    if (existente) {
+    if (existenteResult.rows.length > 0) {
       return NextResponse.json(
         { error: 'Ya existe un cliente con este email en este negocio' },
         { status: 400 }
       );
     }
 
-    // Generar código QR único para el cliente
+    // Generar código QR único
     const qrCodigo = `QR-${negocioId.substring(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`.toUpperCase();
+    const clienteId = `cli_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+    const now = new Date().toISOString();
 
     // Crear cliente
-    const cliente = await db.cliente.create({
-      data: {
-        negocioId,
-        nombre,
-        email,
-        telefono: telefono || null,
-        qrCodigo,
-        comprasTotal: 0,
-      },
+    await db.execute({
+      sql: `INSERT INTO Cliente (id, negocioId, nombre, email, telefono, qrCodigo, comprasTotal, recompensasPendientes, recompensasCanjeadas, activo, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, 0, 0, 0, 1, ?, ?)`,
+      args: [clienteId, negocioId, nombre, email.toLowerCase(), telefono || null, qrCodigo, now, now]
     });
 
-    // Enviar notificaciones al dueño (async, no bloquear respuesta)
+    // Enviar notificaciones al dueño
     Promise.all([
       notifyNewClienteToOwner({
         ownerEmail: negocio.emailDestino,
@@ -146,9 +164,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       cliente: {
-        id: cliente.id,
-        nombre: cliente.nombre,
-        email: cliente.email,
+        id: clienteId,
+        nombre,
+        email,
+        qrCodigo,
       },
     });
   } catch (error) {

@@ -16,43 +16,42 @@ export function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// Crear sesión de admin
+// Crear sesión
 export async function createAdminSession(negocioId: string): Promise<string> {
   const token = generateToken();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 días
 
-  await db.adminSession.create({
+  await db.sesion.create({
     data: {
       negocioId,
       token,
-      expiresAt,
+      expiresAt: expiresAt.toISOString(),
     },
   });
 
   return token;
 }
 
-// Verificar sesión de admin
+// Verificar sesión
 export async function verifyAdminSession(token: string): Promise<string | null> {
-  const session = await db.adminSession.findUnique({
+  const session = await db.sesion.findUnique({
     where: { token },
-    include: { negocio: true },
   });
 
   if (!session) return null;
-  if (session.expiresAt < new Date()) {
-    await db.adminSession.delete({ where: { token } });
+  if (new Date(session.expiresAt as string) < new Date()) {
+    await db.sesion.delete({ where: { token } });
     return null;
   }
 
-  return session.negocioId;
+  return session.negocioId as string;
 }
 
 // Eliminar sesión
 export async function deleteAdminSession(token: string): Promise<void> {
   try {
-    await db.adminSession.delete({ where: { token } });
+    await db.sesion.delete({ where: { token } });
   } catch {
     // Ignorar si no existe
   }

@@ -22,16 +22,16 @@ function getClient() {
   return client
 }
 
-// Helper para ejecutar queries
+// Helper para ejecutar queries - ContrataFácil
 export const db = {
   // Negocio operations
   negocio: {
-    async findFirst(args: { where: { emailDestino?: string; id?: string; slug?: string } }) {
+    async findFirst(args: { where: { email?: string; id?: string; slug?: string } }) {
       const db = getClient()
-      if (args.where.emailDestino) {
+      if (args.where.email) {
         const result = await db.execute({
-          sql: 'SELECT * FROM Negocio WHERE emailDestino = ?',
-          args: [args.where.emailDestino]
+          sql: 'SELECT * FROM Negocio WHERE email = ?',
+          args: [args.where.email.toLowerCase()]
         })
         return result.rows[0] as any || null
       }
@@ -52,13 +52,12 @@ export const db = {
       return null
     },
 
-    async findUnique(args: { where: { id?: string; slug?: string } }) {
+    async findUnique(args: { where: { id?: string; slug?: string; email?: string } }) {
       return this.findFirst(args as any)
     },
 
     async create(args: { data: Record<string, any> }) {
       const db = getClient()
-      // Generar ID si no existe
       const data = { 
         id: `neg_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
         ...args.data 
@@ -90,90 +89,60 @@ export const db = {
     }
   },
 
-  // Cliente operations
-  cliente: {
-    async findFirst(args: { where: { negocioId_email?: { negocioId: string; email: string }; qrCodigo?: string; email?: string; activo?: boolean }; include?: { negocio?: { select: { nombre: boolean; recompensaComprasNecesarias?: boolean } } } }) {
+  // Candidato operations
+  candidato: {
+    async findFirst(args: { where: { id?: string; negocioId?: string; email?: string } }) {
       const db = getClient()
-      let sql = 'SELECT c.*, n.nombre as negocio_nombre, n.recompensaComprasNecesarias as negocio_recompensaComprasNecesarias FROM Cliente c LEFT JOIN Negocio n ON c.negocioId = n.id WHERE 1=1'
+      let sql = 'SELECT * FROM Candidato WHERE 1=1'
       const params: any[] = []
       
-      if (args.where.qrCodigo) {
-        sql += ' AND c.qrCodigo = ?'
-        params.push(args.where.qrCodigo)
+      if (args.where.id) {
+        sql += ' AND id = ?'
+        params.push(args.where.id)
       }
-      if (args.where.negocioId_email) {
-        sql += ' AND c.negocioId = ? AND c.email = ?'
-        params.push(args.where.negocioId_email.negocioId, args.where.negocioId_email.email)
+      if (args.where.negocioId) {
+        sql += ' AND negocioId = ?'
+        params.push(args.where.negocioId)
       }
       if (args.where.email) {
-        sql += ' AND c.email = ?'
+        sql += ' AND email = ?'
         params.push(args.where.email.toLowerCase())
-      }
-      if (args.where.activo !== undefined) {
-        sql += ' AND c.activo = ?'
-        params.push(args.where.activo ? 1 : 0)
       }
       
       sql += ' LIMIT 1'
       
       const result = await db.execute({ sql, args: params })
-      if (result.rows.length === 0) return null
-      
-      const row = result.rows[0] as any
-      return {
-        ...row,
-        negocio: args.include?.negocio ? { 
-          nombre: row.negocio_nombre,
-          recompensaComprasNecesarias: row.negocio_recompensaComprasNecesarias || 10
-        } : undefined
-      }
+      return result.rows[0] as any || null
     },
 
-    async findUnique(args: { where: { qrCodigo?: string; id?: string; negocioId_email?: { negocioId: string; email: string } }; include?: { negocio?: { select: { nombre: boolean; recompensaComprasNecesarias?: boolean } } } }) {
+    async findUnique(args: { where: { id?: string; negocioId_email?: { negocioId: string; email: string } } }) {
       const db = getClient()
-      let sql = 'SELECT c.*, n.nombre as negocio_nombre, n.recompensaComprasNecesarias as negocio_recompensaComprasNecesarias FROM Cliente c LEFT JOIN Negocio n ON c.negocioId = n.id WHERE 1=1'
+      let sql = 'SELECT * FROM Candidato WHERE 1=1'
       const params: any[] = []
       
-      if (args.where.qrCodigo) {
-        sql += ' AND c.qrCodigo = ?'
-        params.push(args.where.qrCodigo)
-      }
       if (args.where.id) {
-        sql += ' AND c.id = ?'
+        sql += ' AND id = ?'
         params.push(args.where.id)
       }
       if (args.where.negocioId_email) {
-        sql += ' AND c.negocioId = ? AND c.email = ?'
+        sql += ' AND negocioId = ? AND email = ?'
         params.push(args.where.negocioId_email.negocioId, args.where.negocioId_email.email)
       }
       
       sql += ' LIMIT 1'
       
       const result = await db.execute({ sql, args: params })
-      if (result.rows.length === 0) return null
-      
-      const row = result.rows[0] as any
-      return {
-        ...row,
-        negocio: args.include?.negocio ? { 
-          nombre: row.negocio_nombre,
-          recompensaComprasNecesarias: row.negocio_recompensaComprasNecesarias || 10
-        } : undefined
-      }
+      return result.rows[0] as any || null
     },
 
-    async findMany(args: { where: { negocioId: string; activo?: boolean; bloqueado?: boolean }; orderBy?: { createdAt: string }; take?: number; skip?: number }) {
+    async findMany(args: { where: { negocioId: string; estado?: string }; orderBy?: { createdAt: string }; take?: number; skip?: number }) {
       const db = getClient()
-      let sql = 'SELECT * FROM Cliente WHERE negocioId = ?'
+      let sql = 'SELECT * FROM Candidato WHERE negocioId = ?'
       const params: any[] = [args.where.negocioId]
       
-      if (args.where.activo !== undefined) {
-        sql += ' AND activo = ?'
-        params.push(args.where.activo ? 1 : 0)
-      }
-      if (args.where.bloqueado !== undefined) {
-        sql += ' AND bloqueado = ?'
-        params.push(args.where.bloqueado ? 1 : 0)
+      if (args.where.estado) {
+        sql += ' AND estado = ?'
+        params.push(args.where.estado)
       }
       
       sql += ' ORDER BY createdAt DESC'
@@ -193,9 +162,8 @@ export const db = {
 
     async create(args: { data: Record<string, any> }) {
       const db = getClient()
-      // Generar ID si no existe
       const data = { 
-        id: `cli_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
+        id: `cand_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
         ...args.data 
       }
       const columns = Object.keys(data).join(', ')
@@ -203,7 +171,7 @@ export const db = {
       const values = Object.values(data)
       
       await db.execute({
-        sql: `INSERT INTO Cliente (${columns}) VALUES (${placeholders})`,
+        sql: `INSERT INTO Candidato (${columns}) VALUES (${placeholders})`,
         args: values as any[]
       })
       
@@ -217,93 +185,42 @@ export const db = {
       const values = [...Object.values(data), args.where.id]
       
       await db.execute({
-        sql: `UPDATE Cliente SET ${updates} WHERE id = ?`,
+        sql: `UPDATE Candidato SET ${updates} WHERE id = ?`,
         args: values as any[]
       })
       
       return { ...data, id: args.where.id }
     },
 
-    async count(args: { where: { negocioId: string } }) {
+    async delete(args: { where: { id: string } }) {
       const db = getClient()
-      const result = await db.execute({
-        sql: 'SELECT COUNT(*) as count FROM Cliente WHERE negocioId = ?',
-        args: [args.where.negocioId]
+      await db.execute({
+        sql: 'DELETE FROM Candidato WHERE id = ?',
+        args: [args.where.id]
       })
-      return (result.rows[0] as any).count
-    }
-  },
-
-  // Compra operations
-  compra: {
-    async findFirst(args: { where: { clienteId: string }; orderBy: { fecha: string }; select?: { fecha: boolean } }) {
-      const db = getClient()
-      const result = await db.execute({
-        sql: 'SELECT * FROM Compra WHERE clienteId = ? ORDER BY fecha DESC LIMIT 1',
-        args: [args.where.clienteId]
-      })
-      return result.rows[0] as any || null
     },
 
-    async findMany(args: { where: { negocioId: string; clienteId?: string }; orderBy: { fecha: string }; take?: number; include?: { cliente: { select: Record<string, boolean> } } }) {
+    async count(args: { where: { negocioId: string; estado?: string } }) {
       const db = getClient()
-      let sql = 'SELECT c.*, cl.nombre as cliente_nombre, cl.email as cliente_email FROM Compra c JOIN Cliente cl ON c.clienteId = cl.id WHERE c.negocioId = ?'
+      let sql = 'SELECT COUNT(*) as count FROM Candidato WHERE negocioId = ?'
       const params: any[] = [args.where.negocioId]
       
-      if (args.where.clienteId) {
-        sql += ' AND c.clienteId = ?'
-        params.push(args.where.clienteId)
-      }
-      
-      sql += ' ORDER BY c.fecha DESC'
-      
-      if (args.take) {
-        sql += ' LIMIT ?'
-        params.push(args.take)
+      if (args.where.estado) {
+        sql += ' AND estado = ?'
+        params.push(args.where.estado)
       }
       
       const result = await db.execute({ sql, args: params })
-      return result.rows.map((r: any) => ({
-        ...r,
-        cliente: { nombre: r.cliente_nombre, email: r.cliente_email }
-      }))
-    },
-
-    async create(args: { data: Record<string, any> }) {
-      const db = getClient()
-      // Generar ID si no existe
-      const data = { 
-        id: `com_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
-        ...args.data 
-      }
-      const columns = Object.keys(data).join(', ')
-      const placeholders = Object.keys(data).map(() => '?').join(', ')
-      const values = Object.values(data)
-      
-      await db.execute({
-        sql: `INSERT INTO Compra (${columns}) VALUES (${placeholders})`,
-        args: values as any[]
-      })
-      
-      return data
-    },
-
-    async count(args: { where: { negocioId: string } }) {
-      const db = getClient()
-      const result = await db.execute({
-        sql: 'SELECT COUNT(*) as count FROM Compra WHERE negocioId = ?',
-        args: [args.where.negocioId]
-      })
-      return (result.rows[0] as any).count
+      return Number((result.rows[0] as any).count)
     }
   },
 
-  // AdminSession operations
-  adminSession: {
+  // Sesion operations
+  sesion: {
     async findUnique(args: { where: { token: string } }) {
       const db = getClient()
       const result = await db.execute({
-        sql: 'SELECT * FROM AdminSession WHERE token = ?',
+        sql: 'SELECT * FROM Sesion WHERE token = ?',
         args: [args.where.token]
       })
       return result.rows[0] as any || null
@@ -311,7 +228,6 @@ export const db = {
 
     async create(args: { data: Record<string, any> }) {
       const db = getClient()
-      // Generar ID si no existe
       const data = { 
         id: `ses_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`,
         ...args.data 
@@ -321,42 +237,34 @@ export const db = {
       const values = Object.values(data)
       
       await db.execute({
-        sql: `INSERT INTO AdminSession (${columns}) VALUES (${placeholders})`,
+        sql: `INSERT INTO Sesion (${columns}) VALUES (${placeholders})`,
         args: values as any[]
       })
       
       return data
     },
 
+    async delete(args: { where: { token: string } }) {
+      const db = getClient()
+      await db.execute({
+        sql: 'DELETE FROM Sesion WHERE token = ?',
+        args: [args.where.token]
+      })
+    },
+
     async deleteMany(args: { where: { negocioId: string } }) {
       const db = getClient()
       await db.execute({
-        sql: 'DELETE FROM AdminSession WHERE negocioId = ?',
+        sql: 'DELETE FROM Sesion WHERE negocioId = ?',
         args: [args.where.negocioId]
       })
     }
   },
 
-  // AlertaSeguridad operations
-  alertaSeguridad: {
-    async findMany(args: { where: { negocioId: string; revisada?: boolean }; orderBy: { creadaEn: string } }) {
-      const db = getClient()
-      let sql = 'SELECT a.*, c.nombre as cliente_nombre, c.email as cliente_email FROM AlertaSeguridad a LEFT JOIN Cliente c ON a.clienteId = c.id WHERE a.negocioId = ?'
-      const params: any[] = [args.where.negocioId]
-      
-      if (args.where.revisada !== undefined) {
-        sql += ' AND a.revisada = ?'
-        params.push(args.where.revisada ? 1 : 0)
-      }
-      
-      sql += ' ORDER BY a.creadaEn DESC'
-      
-      const result = await db.execute({ sql, args: params })
-      return result.rows.map((r: any) => ({
-        ...r,
-        cliente: r.clienteId ? { nombre: r.cliente_nombre, email: r.cliente_email } : null
-      }))
-    }
+  // Raw query helper
+  async execute(sql: string, args: any[] = []) {
+    const db = getClient()
+    return db.execute({ sql, args })
   },
 
   // Transaction helper
